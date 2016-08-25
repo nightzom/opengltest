@@ -1,0 +1,56 @@
+#version 130
+
+attribute vec3 position;
+attribute vec2 textureCoords;
+attribute vec3 normal;
+
+varying vec2 pass_textureCoords;
+varying vec3 pass_surfaceNormal;
+varying vec3 pass_toLightVector;
+varying vec3 pass_toCameraVector;
+varying float pass_visibility;
+
+uniform mat4 transformationMatrix;
+uniform mat4 projectionMatrix;
+uniform mat4 viewMatrix;
+uniform vec3 lightPosition;
+
+mat2 inverse(mat2 m) {
+  float d = 1.0 / determinant(m) ;
+  return d * mat2( m[1][1], -m[0][1], -m[1][0], m[0][0]) ;
+}
+
+mat4 inverse(mat4 m) {
+  mat2 a = inverse(mat2(m));
+  mat2 b = mat2(m[2].xy,m[3].xy);
+  mat2 c = mat2(m[0].zw,m[1].zw);
+  mat2 d = mat2(m[2].zw,m[3].zw);
+
+  mat2 t = c*a;
+  mat2 h = inverse(d - t*b);
+  mat2 g = - h*t;
+  mat2 f = - a*b*h;
+  mat2 e = a - f*t;
+
+  return mat4( vec4(e[0],g[0]), vec4(e[1],g[1]), 
+                  vec4(f[0],h[0]), vec4(f[1],f[1]) );
+}
+
+const float density = 0.035;
+const float gradient = 1.5;
+
+void main(void){
+
+	vec4 worldPosition = transformationMatrix * vec4(position, 1.0);
+	vec4 positionRelativeToCam = viewMatrix  * worldPosition;
+	gl_Position = projectionMatrix * positionRelativeToCam;
+	pass_textureCoords = textureCoords;
+	
+	pass_surfaceNormal = (transformationMatrix * vec4(normal, 0.0)).xyz;
+	pass_toLightVector = lightPosition - worldPosition.xyz;
+	pass_toCameraVector = (inverse(viewMatrix) * vec4(0.0, 0.0, 0.0, 1.0)).xyz - worldPosition.xyz;
+	
+	float distance = length(positionRelativeToCam.xyz);
+	pass_visibility = exp(-pow(distance * density, gradient));
+	pass_visibility = clamp(pass_visibility, 0.0, 1.0);
+}
